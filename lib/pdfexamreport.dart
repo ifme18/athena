@@ -15,8 +15,8 @@ class PdfExamReport {
 
     // Sort students by average score (descending)
     students.sort((a, b) {
-      double aAvg = calculateAverage(a['scores']);
-      double bAvg = calculateAverage(b['scores']);
+      double aAvg = calculateAverage(a['scores'] ?? {});
+      double bAvg = calculateAverage(b['scores'] ?? {});
       return bAvg.compareTo(aAvg);
     });
 
@@ -27,15 +27,15 @@ class PdfExamReport {
         build: (context) => [
           _buildHeader(schoolName, examName, className),
           pw.SizedBox(height: 20),
-          _buildSummaryStatistics(students),
+          if (students.isNotEmpty) _buildSummaryStatistics(students),
           pw.SizedBox(height: 20),
-          _buildScoreDistributionTable(students),
+          if (students.isNotEmpty) _buildScoreDistributionTable(students),
           pw.SizedBox(height: 20),
-          _buildSubjectAnalysis(students, subjects),
+          if (students.isNotEmpty && subjects.isNotEmpty) _buildSubjectAnalysis(students, subjects),
           pw.SizedBox(height: 20),
-          _buildDetailedResults(students, subjects),
+          if (students.isNotEmpty && subjects.isNotEmpty) _buildDetailedResults(students, subjects),
           pw.SizedBox(height: 20),
-          _buildPerformanceAnalysis(students),
+          if (students.isNotEmpty) _buildPerformanceAnalysis(students),
         ],
       ),
     );
@@ -76,14 +76,11 @@ class PdfExamReport {
   }
 
   static pw.Widget _buildSummaryStatistics(List<Map<String, dynamic>> students) {
-    double classAverage = students.isEmpty ? 0 :
-    students.map((s) => calculateAverage(s['scores'])).reduce((a, b) => a + b) / students.length;
+    if (students.isEmpty) return pw.Text('No data available');
 
-    double highestScore = students.isEmpty ? 0 :
-    students.map((s) => calculateAverage(s['scores'])).reduce((a, b) => a > b ? a : b);
-
-    double lowestScore = students.isEmpty ? 0 :
-    students.map((s) => calculateAverage(s['scores'])).reduce((a, b) => a < b ? a : b);
+    double classAverage = students.fold(0.0, (sum, student) => sum + calculateAverage(student['scores'] ?? {})) / students.length;
+    double highestScore = students.map((s) => calculateAverage(s['scores'] ?? {})).reduce((a, b) => a > b ? a : b);
+    double lowestScore = students.map((s) => calculateAverage(s['scores'] ?? {})).reduce((a, b) => a < b ? a : b);
 
     return pw.Container(
       padding: pw.EdgeInsets.all(10),
@@ -119,11 +116,13 @@ class PdfExamReport {
       List<Map<String, dynamic>> students,
       List<Map<String, dynamic>> subjects,
       ) {
+    if (students.isEmpty || subjects.isEmpty) return pw.Text('No data available');
+
     Map<String, Map<String, double>> subjectStats = {};
 
     // Initialize stats for each subject
     for (var subject in subjects) {
-      subjectStats[subject['id']] = {
+      subjectStats[subject['id'] ?? ''] = {
         'total': 0,
         'highest': 0,
         'lowest': 100,
@@ -133,14 +132,16 @@ class PdfExamReport {
 
     // Calculate statistics for each subject
     for (var student in students) {
-      student['scores'].forEach((subjectId, scoreData) {
-        double score = (scoreData['score'] ?? 0).toDouble();
-        var stats = subjectStats[subjectId]!;
-        stats['total'] = stats['total']! + score;
-        stats['highest'] = score > stats['highest']! ? score : stats['highest']!;
-        stats['lowest'] = score < stats['lowest']! ? score : stats['lowest']!;
-        stats['count'] = stats['count']! + 1;
-      });
+      for (var subject in subjects) {
+        double score = (student['scores']?[subject['id'] ?? '']?['score']?.toDouble() ?? 0);
+        if (score != 0) {
+          var stats = subjectStats[subject['id'] ?? '']!;
+          stats['total'] = stats['total']! + score;
+          stats['highest'] = score > stats['highest']! ? score : stats['highest']!;
+          stats['lowest'] = score < stats['lowest']! ? score : stats['lowest']!;
+          stats['count'] = stats['count']! + 1;
+        }
+      }
     }
 
     return pw.Column(
@@ -167,11 +168,11 @@ class PdfExamReport {
               ],
             ),
             ...subjects.map((subject) {
-              var stats = subjectStats[subject['id']]!;
+              var stats = subjectStats[subject['id'] ?? '']!;
               double average = stats['count']! > 0 ? stats['total']! / stats['count']! : 0;
               return pw.TableRow(
                 children: [
-                  _buildTableCell(subject['name']),
+                  _buildTableCell(subject['name'] ?? 'Unknown'),
                   _buildTableCell('${average.toStringAsFixed(2)}%'),
                   _buildTableCell('${stats['highest']!.toStringAsFixed(1)}%'),
                   _buildTableCell('${stats['lowest']!.toStringAsFixed(1)}%'),
@@ -188,6 +189,8 @@ class PdfExamReport {
       List<Map<String, dynamic>> students,
       List<Map<String, dynamic>> subjects,
       ) {
+    if (students.isEmpty || subjects.isEmpty) return pw.Text('No data available');
+
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -208,7 +211,8 @@ class PdfExamReport {
               children: [
                 _buildTableCell('Rank', isHeader: true),
                 _buildTableCell('Reg. No.', isHeader: true),
-                ...subjects.map((subject) => _buildTableCell(subject['name'], isHeader: true)),
+                _buildTableCell('Name', isHeader: true),
+                ...subjects.map((subject) => _buildTableCell(subject['name'] ?? 'Unknown', isHeader: true)),
                 _buildTableCell('Average', isHeader: true),
                 _buildTableCell('Grade', isHeader: true),
               ],
@@ -217,15 +221,16 @@ class PdfExamReport {
             ...students.asMap().entries.map((entry) {
               int rank = entry.key + 1;
               var student = entry.value;
-              double avgScore = calculateAverage(student['scores']);
+              double avgScore = calculateAverage(student['scores'] ?? {});
 
               return pw.TableRow(
                 children: [
                   _buildTableCell(rank.toString()),
-                  _buildTableCell(student['regno']),
+                  _buildTableCell(student['regno'] ?? 'N/A'),
+                  _buildTableCell(student['name'] ?? 'Unknown'),
                   ...subjects.map((subject) {
-                    var score = student['scores'][subject['id']]?['score'] ?? '-';
-                    return _buildTableCell(score.toString());
+                    var score = student['scores']?[subject['id'] ?? '']?['score']?.toString() ?? '-';
+                    return _buildTableCell(score);
                   }),
                   _buildTableCell('${avgScore.toStringAsFixed(2)}%'),
                   _buildTableCell(_getGrade(avgScore)),
@@ -239,6 +244,8 @@ class PdfExamReport {
   }
 
   static pw.Widget _buildScoreDistributionTable(List<Map<String, dynamic>> students) {
+    if (students.isEmpty) return pw.Text('No data available');
+
     Map<String, int> distribution = {
       '80-100': 0,
       '70-79': 0,
@@ -247,11 +254,11 @@ class PdfExamReport {
     };
 
     for (var student in students) {
-      double avg = calculateAverage(student['scores']);
-      if (avg >= 80) distribution['80-100'] = distribution['80-100']! + 1;
-      else if (avg >= 70) distribution['70-79'] = distribution['70-79']! + 1;
-      else if (avg >= 50) distribution['50-69'] = distribution['50-69']! + 1;
-      else distribution['0-49'] = distribution['0-49']! + 1;
+      double avg = calculateAverage(student['scores'] ?? {});
+      if (avg >= 80) distribution['80-100'] = (distribution['80-100'] ?? 0) + 1;
+      else if (avg >= 70) distribution['70-79'] = (distribution['70-79'] ?? 0) + 1;
+      else if (avg >= 50) distribution['50-69'] = (distribution['50-69'] ?? 0) + 1;
+      else distribution['0-49'] = (distribution['0-49'] ?? 0) + 1;
     }
 
     return pw.Column(
@@ -292,11 +299,13 @@ class PdfExamReport {
   }
 
   static pw.Widget _buildPerformanceAnalysis(List<Map<String, dynamic>> students) {
+    if (students.isEmpty) return pw.Text('No data available');
+
     int totalStudents = students.length;
-    int excellentCount = students.where((s) => calculateAverage(s['scores']) >= 80).length;
-    int goodCount = students.where((s) => calculateAverage(s['scores']) >= 70 && calculateAverage(s['scores']) < 80).length;
-    int averageCount = students.where((s) => calculateAverage(s['scores']) >= 50 && calculateAverage(s['scores']) < 70).length;
-    int belowAverageCount = students.where((s) => calculateAverage(s['scores']) < 50).length;
+    int excellentCount = students.where((s) => calculateAverage(s['scores'] ?? {}) >= 80).length;
+    int goodCount = students.where((s) => calculateAverage(s['scores'] ?? {}) >= 70 && calculateAverage(s['scores'] ?? {}) < 80).length;
+    int averageCount = students.where((s) => calculateAverage(s['scores'] ?? {}) >= 50 && calculateAverage(s['scores'] ?? {}) < 70).length;
+    int belowAverageCount = students.where((s) => calculateAverage(s['scores'] ?? {}) < 50).length;
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -370,9 +379,13 @@ class PdfExamReport {
   static double calculateAverage(Map<String, dynamic> scores) {
     if (scores.isEmpty) return 0;
     double total = 0;
+    int count = 0;
     scores.forEach((_, data) {
-      total += (data['score'] ?? 0).toDouble();
+      if (data['score'] != null) {
+        total += data['score'].toDouble();
+        count++;
+      }
     });
-    return total / scores.length;
+    return count > 0 ? total / count : 0;
   }
 }

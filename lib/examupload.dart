@@ -5,6 +5,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import 'pdfexamreport.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'pdfviewerscreen.dart';
+import 'dart:async';
 
 class ExamUpdateScreen extends StatefulWidget {
   @override
@@ -14,19 +15,22 @@ class ExamUpdateScreen extends StatefulWidget {
 class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
   String selectedClass = "";
   String selectedExam = "";
-  List<Map<String, dynamic>> students = [];
+  late Future<List<Map<String, dynamic>>> _studentsFuture;
   String schoolId = "";
   List<Map<String, dynamic>> classes = [];
   List<Map<String, dynamic>> exams = [];
   List<Map<String, dynamic>> subjects = [];
   List<String> selectedSubjects = [];
+  bool _isUpdating = false;
 
-  late Future<void> _initializationFuture;
+  Map<String, Map<String, TextEditingController>> scoreControllers = {};
+  Map<String, Map<String, dynamic>> studentScores = {};
 
   @override
   void initState() {
     super.initState();
-    _initializationFuture = _initialize();
+    _studentsFuture = Future.value([]);
+    _initialize();
   }
 
   Future<void> _initialize() async {
@@ -36,6 +40,7 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
       fetchExams(),
       fetchSubjects(),
     ]);
+    _studentsFuture = fetchStudentsWithScores(selectedClass);
   }
 
   Future<void> fetchSchoolId() async {
@@ -110,20 +115,21 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
         .get();
 
     List<Map<String, dynamic>> studentsList = [];
+    studentScores.clear();
 
     for (var doc in snapshot.docs) {
       var data = doc.data();
       Map<String, dynamic> scores = {};
 
-      // Fetch previous scores for each subject
+      // Fetch existing scores for each subject
       for (String subjectId in selectedSubjects) {
-        final previousResults = await fetchPreviousResults(doc.id, subjectId);
-        if (previousResults.docs.isNotEmpty) {
-          var lastResult = previousResults.docs.first.data();
+        final results = await fetchPreviousResults(doc.id, subjectId);
+        if (results.docs.isNotEmpty) {
+          var lastResult = results.docs.first.data();
           scores[subjectId] = {
             'score': lastResult['score'],
             'rating': lastResult['rating'],
-            'averageScore': lastResult['averageScore'],
+            'resultId': results.docs.first.id,
           };
         }
       }
@@ -131,11 +137,26 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
       studentsList.add({
         'id': doc.id,
         'regno': data['regno'] ?? 'N/A',
-        'scores': scores,
+        'name': data['firstName'] ?? 'Unknown',
       });
+
+      studentScores[doc.id] = scores;
     }
 
+    initializeControllers(studentsList);
     return studentsList;
+  }
+
+  void initializeControllers(List<Map<String, dynamic>> students) {
+    scoreControllers.clear();
+
+    for (var student in students) {
+      scoreControllers[student['id']] = {};
+      for (var subjectId in selectedSubjects) {
+        var score = studentScores[student['id']]?[subjectId]?['score']?.toString() ?? '';
+        scoreControllers[student['id']]![subjectId] = TextEditingController(text: score);
+      }
+    }
   }
 
   @override
@@ -147,60 +168,54 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.refresh),
-            onPressed: () {
-              setState(() {
-                _initializationFuture = _initialize();
-              });
-            },
+            onPressed: () => _initialize(),
           ),
+          if (_isUpdating)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              ),
+            ),
         ],
       ),
-      body: FutureBuilder<void>(
-        future: _initializationFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            buildClassDropdown(),
+            SizedBox(height: 16.0),
+            buildExamDropdown(),
+            SizedBox(height: 16.0),
+            buildSubjectsSelection(),
+            SizedBox(height: 16.0),
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: _studentsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error loading students: ${snapshot.error}'));
+                  }
 
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                buildClassDropdown(),
-                SizedBox(height: 16.0),
-                buildExamDropdown(),
-                SizedBox(height: 16.0),
-                buildSubjectsSelection(),
-                SizedBox(height: 16.0),
-                if (selectedClass.isNotEmpty)
-                  Expanded(
-                    child: FutureBuilder<List<Map<String, dynamic>>>(
-                      future: fetchStudentsWithScores(selectedClass),
-                      builder: (context, studentsSnapshot) {
-                        if (studentsSnapshot.connectionState == ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator());
-                        }
-
-                        if (studentsSnapshot.hasError) {
-                          return Center(child: Text('Error loading students: ${studentsSnapshot.error}'));
-                        }
-
-                        students = studentsSnapshot.data ?? [];
-                        return buildStudentsTable();
-                      },
-                    ),
-                  ),
-                SizedBox(height: 16.0),
-                buildActionButtons(),
-              ],
+                  var students = snapshot.data ?? [];
+                  return buildStudentsTable(students);
+                },
+              ),
             ),
-          );
-        },
+            SizedBox(height: 16.0),
+            buildActionButtons(),
+          ],
+        ),
       ),
     );
   }
@@ -218,6 +233,7 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
       onChanged: (value) {
         setState(() {
           selectedClass = value!;
+          _studentsFuture = fetchStudentsWithScores(selectedClass);
         });
       },
     );
@@ -236,6 +252,7 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
       onChanged: (value) {
         setState(() {
           selectedExam = value!;
+          _studentsFuture = fetchStudentsWithScores(selectedClass);
         });
       },
     );
@@ -247,12 +264,13 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
       onSelectionChanged: (selectedList) {
         setState(() {
           selectedSubjects = selectedList;
+          _studentsFuture = fetchStudentsWithScores(selectedClass);
         });
       },
     );
   }
 
-  Widget buildStudentsTable() {
+  Widget buildStudentsTable(List<Map<String, dynamic>> students) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
@@ -285,10 +303,13 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
   DataRow buildStudentRow(Map<String, dynamic> student) {
     double totalScore = 0;
     int subjectCount = 0;
+    var scores = studentScores[student['id']] ?? {};
 
-    student['scores'].forEach((subjectId, data) {
-      totalScore += data['score'] ?? 0;
-      subjectCount++;
+    scores.forEach((subjectId, data) {
+      if (data['score'] != null) {
+        totalScore += data['score'] as num;
+        subjectCount++;
+      }
     });
 
     double averageScore = subjectCount == 0 ? 0 : totalScore / subjectCount;
@@ -297,19 +318,36 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
       cells: [
         DataCell(Text(student['regno'])),
         ...selectedSubjects.map((subjectId) {
+          var controller = scoreControllers[student['id']]![subjectId]!;
+
           return DataCell(
             Container(
               width: 150,
-              child: TextFormField(
-                initialValue: student['scores'][subjectId]?['score']?.toString() ?? '',
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  setState(() {
-                    student['scores'][subjectId] = {
-                      'score': int.tryParse(value) ?? 0,
-                    };
-                  });
-                },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: controller,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        errorText: _validateScore(controller.text),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          scores[subjectId] = {
+                            'score': int.tryParse(value) ?? 0,
+                            'resultId': scores[subjectId]?['resultId'],
+                          };
+                        });
+                      },
+                    ),
+                  ),
+                  if (scores[subjectId]?['resultId'] != null)
+                    IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _deleteScore(student['id'], subjectId),
+                    ),
+                ],
               ),
             ),
           );
@@ -319,26 +357,65 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
     );
   }
 
+  String? _validateScore(String value) {
+    if (value.isEmpty) return null;
+    final score = int.tryParse(value);
+    if (score == null) return 'Invalid number';
+    if (score < 0 || score > 100) return 'Score must be 0-100';
+    return null;
+  }
+
+  Future<void> _deleteScore(String studentId, String subjectId) async {
+    var scoreData = studentScores[studentId]?[subjectId];
+    if (scoreData == null || scoreData['resultId'] == null) return;
+
+    try {
+      setState(() => _isUpdating = true);
+
+      await FirebaseFirestore.instance
+          .collection('exams')
+          .doc(selectedExam)
+          .collection('results')
+          .doc(scoreData['resultId'])
+          .delete();
+
+      setState(() {
+        studentScores[studentId]?.remove(subjectId);
+        scoreControllers[studentId]![subjectId]!.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Score deleted successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting score: $e')),
+      );
+    } finally {
+      setState(() => _isUpdating = false);
+    }
+  }
+
   Widget buildActionButtons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         ElevatedButton(
-          onPressed: submitScores,
-          child: Text('Submit'),
+          onPressed: _isUpdating ? null : submitScores,
+          child: Text(_isUpdating ? 'Updating...' : 'Submit'),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orange,
           ),
         ),
         ElevatedButton(
-          onPressed: generateInvoice,
+          onPressed: _isUpdating ? null : generateInvoice,
           child: Text('Generate Report'),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green,
           ),
         ),
         ElevatedButton(
-          onPressed: visualizeData,
+          onPressed: _isUpdating ? null : visualizeData,
           child: Text('Visualize'),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blueAccent,
@@ -347,92 +424,105 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
       ],
     );
   }
-// Add these methods to the _ExamUpdateScreenState class
 
   Future<void> submitScores() async {
-    if (selectedClass.isEmpty || selectedExam.isEmpty || students.isEmpty || selectedSubjects.isEmpty) {
+    if (selectedClass.isEmpty || selectedExam.isEmpty || selectedSubjects.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please select all required fields')),
       );
       return;
     }
 
+    setState(() => _isUpdating = true);
+
     try {
-      for (var student in students) {
-        String studentId = student['id'];
-        var scores = student['scores'];
+      WriteBatch batch = FirebaseFirestore.instance.batch();
 
+      for (var student in studentScores.entries) {
         for (var subjectId in selectedSubjects) {
-          var scoreData = scores[subjectId];
+          var scoreData = student.value[subjectId];
           if (scoreData != null) {
-            String rating;
-            int score = scoreData['score'];
+            var controller = scoreControllers[student.key]![subjectId]!;
+            int? newScore = int.tryParse(controller.text);
 
-            if (score >= 0 && score <= 49) {
-              rating = 'Below Expectation';
-            } else if (score >= 50 && score <= 69) {
-              rating = 'Approaching Expectation';
-            } else if (score >= 70 && score <= 79) {
-              rating = 'Meeting Expectation';
-            } else if (score >= 80 && score <= 100) {
-              rating = 'Exceeding Expectation';
-            } else {
-              rating = 'Unknown';
-            }
+            if (newScore != null && _validateScore(controller.text) == null) {
+              String rating = determineRating(newScore);
+              String subjectName = getSubjectName(subjectId);
 
-            String subjectName = getSubjectName(subjectId);
+              if (scoreData['resultId'] != null) {
+                // Update existing score
+                var docRef = FirebaseFirestore.instance
+                    .collection('exams')
+                    .doc(selectedExam)
+                    .collection('results')
+                    .doc(scoreData['resultId']);
 
-            // First check if a record already exists
-            var existingResults = await FirebaseFirestore.instance
-                .collection('exams')
-                .doc(selectedExam)
-                .collection('results')
-                .where('registrationNumber', isEqualTo: studentId)
-                .where('subjectId', isEqualTo: subjectId)
-                .get();
+                batch.update(docRef, {
+                  'score': newScore,
+                  'rating': rating,
+                  'lastUpdated': FieldValue.serverTimestamp(),
+                });
+              } else {
+                // Create new score
+                var newDocRef = FirebaseFirestore.instance
+                    .collection('exams')
+                    .doc(selectedExam)
+                    .collection('results')
+                    .doc();
 
-            if (existingResults.docs.isNotEmpty) {
-              // Update existing record
-              await existingResults.docs.first.reference.update({
-                'score': score,
-                'rating': rating,
-                'lastUpdated': DateTime.now(),
-              });
-            } else {
-              // Create new record
-              await FirebaseFirestore.instance
-                  .collection('exams')
-                  .doc(selectedExam)
-                  .collection('results')
-                  .add({
-                'registrationNumber': studentId,
-                'subjectName': subjectName,
-                'score': score,
-                'rating': rating,
-                'classId': selectedClass,
-                'examId': selectedExam,
-                'subjectId': subjectId,
-                'createdAt': DateTime.now(),
-                'lastUpdated': DateTime.now(),
-              });
+                batch.set(newDocRef, {
+                  'registrationNumber': student.key,
+                  'subjectName': subjectName,
+                  'score': newScore,
+                  'rating': rating,
+                  'classId': selectedClass,
+                  'examId': selectedExam,
+                  'subjectId': subjectId,
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'lastUpdated': FieldValue.serverTimestamp(),
+                });
+              }
+
+              student.value[subjectId]['score'] = newScore; // Update local copy
             }
           }
         }
       }
 
+      await batch.commit();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Scores submitted successfully')),
+        SnackBar(content: Text('Scores updated successfully')),
       );
+
+      setState(() {
+        _studentsFuture = fetchStudentsWithScores(selectedClass);
+      });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting scores: $e')),
+        SnackBar(content: Text('Error updating scores: $e')),
       );
+    } finally {
+      setState(() => _isUpdating = false);
     }
   }
 
-  // Update the generateInvoice method in _ExamUpdateScreenState
+  String determineRating(int score) {
+    if (score >= 0 && score <= 49) {
+      return 'Below Expectation';
+    } else if (score >= 50 && score <= 69) {
+      return 'Approaching Expectation';
+    } else if (score >= 70 && score <= 79) {
+      return 'Meeting Expectation';
+    } else if (score >= 80 && score <= 100) {
+      return 'Exceeding Expectation';
+    } else {
+      return 'Unknown';
+    }
+  }
+
   Future<void> generateInvoice() async {
-    if (selectedClass.isEmpty || selectedExam.isEmpty || students.isEmpty) {
+    if (selectedClass.isEmpty || selectedExam.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please select all required fields')),
       );
@@ -440,26 +530,22 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
     }
 
     try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+
 
       final pdfData = await PdfExamReport.generate(
         examName: getExamName(selectedExam),
         schoolName: await getSchoolName(),
         className: getClassName(selectedClass),
-        students: students,
+        students: studentScores.keys.map((id) => {
+          'id': id,
+          'regno': 'N/A', // You'd need to fetch this from your students list
+          'scores': studentScores[id],
+        }).toList(),
         subjects: subjects,
       );
 
-      // Remove loading dialog
       Navigator.pop(context);
 
-      // Navigate to PDF viewer
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -467,7 +553,6 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
         ),
       );
     } catch (e) {
-      // Remove loading dialog if still showing
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
       }
@@ -500,8 +585,8 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
       '81-100': 0,
     };
 
-    students.forEach((student) {
-      student['scores'].forEach((subject, data) {
+    studentScores.forEach    ((_, scores) {
+      scores.forEach((_, data) {
         int score = data['score'] ?? 0;
         if (score <= 20)
           distribution['0-20'] = (distribution['0-20'] ?? 0) + 1;
@@ -522,7 +607,7 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
   }
 
   void visualizeData() {
-    if (students.isEmpty || selectedSubjects.isEmpty) {
+    if (studentScores.isEmpty || selectedSubjects.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No data available to visualize')),
       );
