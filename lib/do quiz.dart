@@ -141,8 +141,8 @@ class AttemptQuizScreenState extends State<AttemptQuizScreen> {
       final percentage = (score / _questions.length) * 100;
       final user = FirebaseAuth.instance.currentUser;
 
-      if (user == null || _selectedQuizId == null) {
-        _showError('Authentication error');
+      if (user == null || _selectedQuizId == null || _schoolId == null) {
+        _showError('Authentication or data error');
         return;
       }
 
@@ -155,6 +155,7 @@ class AttemptQuizScreenState extends State<AttemptQuizScreen> {
         'quizId': _selectedQuizId,
         'studentId': user.uid,
         'studentName': _studentName,
+        'schoolId': _schoolId, // Include schoolId in the submission
         'score': percentage,
         'submittedAt': FieldValue.serverTimestamp(),
         'answers': _selectedAnswers,

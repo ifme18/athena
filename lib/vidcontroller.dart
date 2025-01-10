@@ -64,12 +64,7 @@ class AdminDashboard extends StatelessWidget {
                 title: "Video Call",
                 iconData: Icons.video_call,
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => JoinScreen(),
-                    ),
-                  );
+
                 },
                 gradientColors: [
                   Colors.lightGreenAccent.withOpacity(0.8),

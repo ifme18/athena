@@ -13,46 +13,50 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
   String? _selectedQuizId;
   List<Map<String, dynamic>> _results = [];
   bool _isLoading = true;
-  String? _studentId;
   String? _schoolId;
-  String? _classId;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserDetails();
+    _fetchTeacherDetails();
   }
 
-  Future<void> _fetchUserDetails() async {
+  Future<void> _fetchTeacherDetails() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        final studentDoc = await FirebaseFirestore.instance
-            .collection('students')
+        // Assume teachers have a separate collection for their profiles
+        final teacherDoc = await FirebaseFirestore.instance
+            .collection('teachers')
             .doc(user.uid)
             .get();
 
-        if (studentDoc.exists) {
+        if (teacherDoc.exists) {
           setState(() {
-            _studentId = user.uid;
-            _schoolId = studentDoc.data()?['schoolId'];
-            _classId = studentDoc.data()?['classId'];
+            _schoolId = teacherDoc.data()?['schoolId'];
           });
           await _fetchQuizzes();
+        } else {
+          print('Teacher document does not exist for user: ${user.uid}');
+          _showError('Teacher data not found');
         }
       } catch (e) {
-        _showError('Error fetching user details');
+        print('Error fetching teacher details: $e');
+        _showError('Error fetching teacher details: ${e.toString()}');
       }
+    } else {
+      print('No authenticated user');
+      _showError('Please log in to view quiz results');
     }
   }
 
   Future<void> _fetchQuizzes() async {
+    if (_schoolId == null) return;
     try {
+      // Fetch quizzes for the school
       final quizzesSnapshot = await FirebaseFirestore.instance
           .collection('quizzes')
           .where('schoolId', isEqualTo: _schoolId)
-          .where('classId', isEqualTo: _classId)
-          .orderBy('createdAt', descending: true)
           .get();
 
       setState(() {
@@ -62,6 +66,7 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
             'name': doc['quizName'],
           };
         }).toList();
+        print('Fetched quizzes: $_quizzes');
 
         _selectedQuizId = _quizzes.isNotEmpty ? _quizzes.first['id'] : null;
         if (_selectedQuizId != null) {
@@ -71,7 +76,8 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
         }
       });
     } catch (e) {
-      _showError('Error fetching quizzes');
+      print('Error fetching quizzes: $e');
+      _showError('Error fetching quizzes: ${e.toString()}');
       setState(() {
         _isLoading = false;
       });
@@ -79,41 +85,42 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
   }
 
   Future<void> _fetchQuizResults(String quizId) async {
+    print('Fetching results for quizId: $quizId');
     setState(() {
       _isLoading = true;
       _results = [];
     });
 
     try {
-      final resultDoc = await FirebaseFirestore.instance
+      // Fetch results for the selected quiz
+      final resultsSnapshot = await FirebaseFirestore.instance
           .collection('quizResults')
-          .doc(quizId)
+          .where('quizId', isEqualTo: quizId)
           .get();
 
-      if (resultDoc.exists) {
-        final submissions = List<Map<String, dynamic>>.from(
-            resultDoc.data()?['submissions'] ?? []);
+      // Filter results by schoolId in Dart after fetching
+      List<Map<String, dynamic>> filteredResults = resultsSnapshot.docs
+          .where((doc) => doc.data()['schoolId'] == _schoolId)
+          .map((doc) {
+        final data = doc.data();
+        final timestamp = data['submittedAt'] as Timestamp;
+        return {
+          'studentName': data['studentName'],
+          'score': data['score'] as num,
+          'submittedAt': timestamp,
+        };
+      }).toList();
 
-        // Filter submissions for the current student
-        final studentSubmissions = submissions.where((submission) =>
-        submission['studentId'] == _studentId).toList();
+      // Sort results by submission time, most recent first
+      filteredResults.sort((a, b) => b['submittedAt'].compareTo(a['submittedAt']));
 
-        setState(() {
-          _results = studentSubmissions.map((submission) {
-            final timestamp = submission['submittedAt'] as Timestamp;
-            return {
-              'score': submission['score'],
-              'submittedAt': timestamp,
-              'answers': submission['answers'],
-            };
-          }).toList();
-
-          // Sort results by submission date, newest first
-          _results.sort((a, b) => b['submittedAt'].compareTo(a['submittedAt']));
-        });
-      }
+      setState(() {
+        _results = filteredResults;
+        print('Filtered and Sorted Results: $_results');
+      });
     } catch (e) {
-      _showError('Error fetching quiz results');
+      print('Error in _fetchQuizResults: $e');
+      _showError('Error fetching quiz results: ${e.toString()}');
     } finally {
       setState(() {
         _isLoading = false;
@@ -175,6 +182,7 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
                       onChanged: (value) {
                         setState(() {
                           _selectedQuizId = value;
+                          print('Selected quiz ID: $_selectedQuizId');
                           if (value != null) {
                             _fetchQuizResults(value);
                           }
@@ -237,11 +245,10 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Attempt ${_results.length - index}',
+                              '${result['studentName']}',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -277,18 +284,6 @@ class _QuizResultsScreenState extends State<QuizResultsScreen> {
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 14,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          score >= 70
-                              ? 'Passed'
-                              : 'Needs Improvement',
-                          style: TextStyle(
-                            color: score >= 70
-                                ? Colors.green[700]
-                                : Colors.orange[700],
-                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
