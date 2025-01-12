@@ -271,31 +271,70 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
   }
 
   Widget buildStudentsTable(List<Map<String, dynamic>> students) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columns: [
-          DataColumn(label: Text('Reg. No.')),
-          ...selectedSubjects.map((subjectId) {
-            return DataColumn(
-              label: SizedBox(
-                width: 150,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(getSubjectName(subjectId)),
-                    SizedBox(height: 8),
-                    Text('Score'),
-                  ],
+    return Expanded(
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: MediaQuery.of(context).size.width,
+                  ),
+                  child: DataTable(
+                    headingRowHeight: 70,
+                    columns: [
+                      DataColumn(
+                        label: Container(
+                          width: 100,
+                          child: Text('Reg. No.',
+                              style: TextStyle(fontWeight: FontWeight.bold)
+                          ),
+                        ),
+                      ),
+                      ...selectedSubjects.map((subjectId) {
+                        return DataColumn(
+                          label: Container(
+                            width: 150,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  getSubjectName(subjectId),
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                SizedBox(height: 8),
+                                Text('Score'),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      DataColumn(
+                        label: Container(
+                          width: 100,
+                          child: Text('Average Score',
+                              style: TextStyle(fontWeight: FontWeight.bold)
+                          ),
+                        ),
+                      ),
+                    ],
+                    rows: students.map((student) {
+                      return buildStudentRow(student);
+                    }).toList(),
+                  ),
                 ),
               ),
-            );
-          }).toList(),
-          DataColumn(label: Text('Average Score')),
-        ],
-        rows: students.map((student) {
-          return buildStudentRow(student);
-        }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -316,7 +355,12 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
 
     return DataRow(
       cells: [
-        DataCell(Text(student['regno'])),
+        DataCell(
+          Container(
+            width: 100,
+            child: Text(student['regno']),
+          ),
+        ),
         ...selectedSubjects.map((subjectId) {
           var controller = scoreControllers[student['id']]![subjectId]!;
 
@@ -331,6 +375,8 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
                         errorText: _validateScore(controller.text),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                       ),
                       onChanged: (value) {
                         setState(() {
@@ -344,7 +390,9 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
                   ),
                   if (scores[subjectId]?['resultId'] != null)
                     IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
+                      icon: Icon(Icons.delete, color: Colors.red, size: 20),
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(),
                       onPressed: () => _deleteScore(student['id'], subjectId),
                     ),
                 ],
@@ -352,7 +400,12 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
             ),
           );
         }).toList(),
-        DataCell(Text(averageScore.toStringAsFixed(2))),
+        DataCell(
+          Container(
+            width: 100,
+            child: Text(averageScore.toStringAsFixed(2)),
+          ),
+        ),
       ],
     );
   }
