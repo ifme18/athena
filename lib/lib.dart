@@ -42,84 +42,123 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Library Screen'),
+        title: Text(
+          'Library',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         backgroundColor: Colors.teal,
+        elevation: 0,
+        centerTitle: true,
       ),
       body: _hasError
-          ? Center(child: Text('Error: $_errorMessage'))
+          ? Center(child: Text('Error: $_errorMessage', style: TextStyle(color: Colors.red)))
           : _currentUserId.isEmpty
           ? Center(child: CircularProgressIndicator())
           : Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _isCheckingStudents = true;
-                  });
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isCheckingStudents ? Colors.teal : Colors.grey,
-                ),
-                child: Text('Students'),
-              ),
-              SizedBox(width: 20),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _isCheckingStudents = false;
-                  });
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isCheckingStudents ? Colors.grey : Colors.teal,
-                ),
-                child: Text('Teachers'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => CollectionsScreen()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent, // Set the primary color to transparent
-                  padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  elevation: 0, // Remove the default elevation
-                ).copyWith(
-                  backgroundColor: MaterialStateProperty.all(Colors.transparent), // Transparent background
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.blue, Colors.purple],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'Go to BooksScreen',
-                      style: TextStyle(color: Colors.white, fontSize: 16.0),
-                    ),
-                  ),
-                ),
-              )
-            ],
-          ),
+          _buildToggleButtons(),
           Expanded(
             child: _isCheckingStudents
                 ? StudentList(currentUserId: _currentUserId)
                 : TeacherList(currentUserId: _currentUserId),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildToggleButtons() {
+    return Container(
+      margin: EdgeInsets.all(16.0),
+      padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.3),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildToggleButton('Students', _isCheckingStudents),
+          _buildToggleButton('Teachers', !_isCheckingStudents),
+          _buildBookButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleButton(String label, bool isActive) {
+    return Expanded(
+      child: ElevatedButton(
+        onPressed: () {
+          setState(() {
+            _isCheckingStudents = label == 'Students';
+          });
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isActive ? Colors.teal : Colors.grey.shade300,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isActive ? Colors.white : Colors.teal,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookButton() {
+    return ElevatedButton(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => CollectionsScreen()),
+        );
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 0,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue, Colors.purple],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+        child: Text(
+          'Books',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -174,31 +213,41 @@ class _StudentListState extends State<StudentList> {
             onChanged: _filterStudents,
             decoration: InputDecoration(
               hintText: 'Search for a student...',
-              prefixIcon: Icon(Icons.search),
+              prefixIcon: Icon(Icons.search, color: Colors.teal),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10.0),
+                borderRadius: BorderRadius.circular(30.0),
+                borderSide: BorderSide(color: Colors.teal),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30.0),
+                borderSide: BorderSide(color: Colors.teal),
               ),
             ),
           ),
         ),
         Expanded(
           child: _filteredStudents.isEmpty
-              ? Center(child: Text('No students found.'))
+              ? Center(child: Text('No students found.', style: TextStyle(color: Colors.grey)))
               : ListView.builder(
             itemCount: _filteredStudents.length,
             itemBuilder: (BuildContext context, int index) {
               DocumentSnapshot document = _filteredStudents[index];
               Map<String, dynamic> data = document.data() as Map<String, dynamic>;
-              return ListTile(
-                title: Text(data['name']),
-                subtitle: Text(data['regno']),
-                trailing: Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => BookDetails(studentId: document.id)),
-                  );
-                },
+              return Card(
+                margin: EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: ListTile(
+                  title: Text(data['name'], style: TextStyle(fontSize: 16)),
+                  subtitle: Text(data['regno'], style: TextStyle(color: Colors.grey)),
+                  trailing: Icon(Icons.chevron_right, color: Colors.teal),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => BookDetails(studentId: document.id)),
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -234,9 +283,14 @@ class _TeacherListState extends State<TeacherList> {
             },
             decoration: InputDecoration(
               hintText: 'Search for a teacher...',
-              prefixIcon: Icon(Icons.search),
+              prefixIcon: Icon(Icons.search, color: Colors.teal),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10.0),
+                borderRadius: BorderRadius.circular(30.0),
+                borderSide: BorderSide(color: Colors.teal),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30.0),
+                borderSide: BorderSide(color: Colors.teal),
               ),
             ),
           ),
@@ -246,7 +300,7 @@ class _TeacherListState extends State<TeacherList> {
             stream: FirebaseFirestore.instance.collection('teachers').where('schoolId', isEqualTo: widget.currentUserId).snapshots(),
             builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
               if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
+                return Center(child: Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.red)));
               }
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(child: CircularProgressIndicator());
@@ -262,15 +316,20 @@ class _TeacherListState extends State<TeacherList> {
                 itemBuilder: (BuildContext context, int index) {
                   DocumentSnapshot document = filteredTeachers[index];
                   Map<String, dynamic> data = document.data() as Map<String, dynamic>;
-                  return ListTile(
-                    title: Text(data['name']),
-                    trailing: Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => BookDetails(teacherId: document.id)),
-                      );
-                    },
+                  return Card(
+                    margin: EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: ListTile(
+                      title: Text(data['name'], style: TextStyle(fontSize: 16)),
+                      trailing: Icon(Icons.chevron_right, color: Colors.teal),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => BookDetails(teacherId: document.id)),
+                        );
+                      },
+                    ),
                   );
                 },
               );
@@ -301,8 +360,9 @@ class _BookDetailsState extends State<BookDetails> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Book Details'),
+        title: Text('Book Details', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.teal,
+        elevation: 0,
       ),
       body: StreamBuilder(
         stream: widget.studentId.isNotEmpty
@@ -319,6 +379,7 @@ class _BookDetailsState extends State<BookDetails> {
                 'Error fetching books: ${snapshot.error}\n'
                     'Please check your internet connection and try again.',
                 textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.red),
               ),
             );
           }
@@ -332,6 +393,7 @@ class _BookDetailsState extends State<BookDetails> {
                     : 'No books found for this teacher.\n'
                     'Teacher ID: ${widget.teacherId}',
                 textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
               ),
             );
           }
@@ -340,10 +402,13 @@ class _BookDetailsState extends State<BookDetails> {
             children: snapshot.data!.docs.map((DocumentSnapshot document) {
               Map<String, dynamic> data = document.data() as Map<String, dynamic>;
               return Card(
+                margin: EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
-                  title: Text(data['bookName'] ?? 'Unnamed Book'),
-                  subtitle: Text('Book Number: ${data['bookNumber'] ?? 'N/A'}'),
-                  trailing: Text('Status: ${data['status'] ?? 'Unknown'}'),
+                  title: Text(data['bookName'] ?? 'Unnamed Book', style: TextStyle(fontSize: 18)),
+                  subtitle: Text('Book Number: ${data['bookNumber'] ?? 'N/A'}', style: TextStyle(color: Colors.grey)),
+                  trailing: Text('Status: ${data['status'] ?? 'Unknown'}', style: TextStyle(color: Colors.teal)),
                   onTap: () {
                     _showReturnDialog(context, document);
                   },
@@ -368,17 +433,17 @@ class _BookDetailsState extends State<BookDetails> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Mark as Returned'),
+          title: Text('Mark as Returned', style: TextStyle(color: Colors.teal)),
           content: Text('Do you want to mark this book as returned?'),
           actions: <Widget>[
             TextButton(
-              child: Text('Cancel'),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey)),
               onPressed: () {
                 Navigator.of(context).pop();
               },
             ),
             TextButton(
-              child: Text('Mark as Returned'),
+              child: Text('Mark as Returned', style: TextStyle(color: Colors.teal)),
               onPressed: () {
                 _markBookAsReturned(context, document);
               },
@@ -392,11 +457,11 @@ class _BookDetailsState extends State<BookDetails> {
   void _markBookAsReturned(BuildContext context, DocumentSnapshot document) {
     FirebaseFirestore.instance.collection('books').doc(document.id).update({'status': 'Returned'}).then((_) {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Book marked as returned')));
-      setState(() {}); // Refresh the state to update the UI
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Book marked as returned'), backgroundColor: Colors.teal));
+      setState(() {});
     }).catchError((error) {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update book status: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update book status: $error'), backgroundColor: Colors.red));
     });
   }
 
@@ -405,7 +470,7 @@ class _BookDetailsState extends State<BookDetails> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Add New Book'),
+          title: Text('Add New Book', style: TextStyle(color: Colors.teal)),
           content: Form(
             key: _formKey,
             child: Column(
@@ -440,13 +505,14 @@ class _BookDetailsState extends State<BookDetails> {
           ),
           actions: <Widget>[
             TextButton(
-              child: Text('Cancel'),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey)),
               onPressed: () {
                 Navigator.of(context).pop();
               },
             ),
             ElevatedButton(
-              child: Text('Submit'),
+              child: Text('Submit', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
               onPressed: () {
                 _submitNewBook(context);
               },
@@ -468,11 +534,11 @@ class _BookDetailsState extends State<BookDetails> {
         'teacherId': widget.teacherId,
       }).then((_) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Book added successfully')));
-        setState(() {}); // Refresh the state to update the UI
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Book added successfully'), backgroundColor: Colors.teal));
+        setState(() {});
       }).catchError((error) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to add book: $error')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to add book: $error'), backgroundColor: Colors.red));
       });
     }
   }

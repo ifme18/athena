@@ -13,8 +13,18 @@ class PdfExamReport {
   }) async {
     final pdf = pw.Document();
 
+    // Ensure all students have necessary fields before proceeding
+    var validatedStudents = students.map((student) {
+      return {
+        'id': student['id'] ?? 'Unknown ID',
+        'regno': student['regno'] ?? 'Unknown Registration', // Use the actual or default regno
+        'name': student['name'] ?? 'Unknown',
+        'scores': student['scores'] ?? {}
+      };
+    }).toList();
+
     // Sort students by average score (descending)
-    students.sort((a, b) {
+    validatedStudents.sort((a, b) {
       double aAvg = calculateAverage(a['scores'] ?? {});
       double bAvg = calculateAverage(b['scores'] ?? {});
       return bAvg.compareTo(aAvg);
@@ -27,15 +37,15 @@ class PdfExamReport {
         build: (context) => [
           _buildHeader(schoolName, examName, className),
           pw.SizedBox(height: 20),
-          if (students.isNotEmpty) _buildSummaryStatistics(students),
+          if (validatedStudents.isNotEmpty) _buildSummaryStatistics(validatedStudents),
           pw.SizedBox(height: 20),
-          if (students.isNotEmpty) _buildScoreDistributionTable(students),
+          if (validatedStudents.isNotEmpty) _buildScoreDistributionTable(validatedStudents),
           pw.SizedBox(height: 20),
-          if (students.isNotEmpty && subjects.isNotEmpty) _buildSubjectAnalysis(students, subjects),
+          if (validatedStudents.isNotEmpty && subjects.isNotEmpty) _buildSubjectAnalysis(validatedStudents, subjects),
           pw.SizedBox(height: 20),
-          if (students.isNotEmpty && subjects.isNotEmpty) _buildDetailedResults(students, subjects),
+          if (validatedStudents.isNotEmpty && subjects.isNotEmpty) _buildDetailedResults(validatedStudents, subjects),
           pw.SizedBox(height: 20),
-          if (students.isNotEmpty) _buildPerformanceAnalysis(students),
+          if (validatedStudents.isNotEmpty) _buildPerformanceAnalysis(validatedStudents),
         ],
       ),
     );
@@ -210,7 +220,7 @@ class PdfExamReport {
               decoration: pw.BoxDecoration(color: PdfColors.grey300),
               children: [
                 _buildTableCell('Rank', isHeader: true),
-                _buildTableCell('Reg. No.', isHeader: true),
+                _buildTableCell('regno', isHeader: true),
                 _buildTableCell('Name', isHeader: true),
                 ...subjects.map((subject) => _buildTableCell(subject['name'] ?? 'Unknown', isHeader: true)),
                 _buildTableCell('Average', isHeader: true),
@@ -226,8 +236,8 @@ class PdfExamReport {
               return pw.TableRow(
                 children: [
                   _buildTableCell(rank.toString()),
-                  _buildTableCell(student['regno'] ?? 'N/A'),
-                  _buildTableCell(student['name'] ?? 'Unknown'),
+                  _buildTableCell(student['regno']), // Now uses the actual regno from the student map
+                  _buildTableCell(student['name']),
                   ...subjects.map((subject) {
                     var score = student['scores']?[subject['id'] ?? '']?['score']?.toString() ?? '-';
                     return _buildTableCell(score);

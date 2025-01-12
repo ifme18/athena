@@ -530,17 +530,35 @@ class _ExamUpdateScreenState extends State<ExamUpdateScreen> {
     }
 
     try {
+      // Fetch the students data again or use the existing _studentsFuture
+      final studentsData = await _studentsFuture;
 
+      // Prepare students data with correct names and registration numbers
+      List<Map<String, dynamic>> studentsWithNames = await Future.wait(studentsData.map((student) async {
+        // Fetch name from Firestore if not available in current data
+        String name = student['name'] ?? 'Unknown';
+        if (name == 'Unknown' || name == null) {
+          final studentDoc = await FirebaseFirestore.instance
+              .collection('students')
+              .doc(student['id'])
+              .get();
+          name = studentDoc.data()?['name'] ?? 'Unknown';
+        }
+
+        var studentScoresMap = studentScores[student['id']] ?? {};
+        return {
+          'id': student['id'],
+          'regno': student['regno'] ?? 'Unknown Registration', // Use the actual regno if available
+          'name': name, // Now we have the correct or default name
+          'scores': studentScoresMap,
+        };
+      }).toList());
 
       final pdfData = await PdfExamReport.generate(
         examName: getExamName(selectedExam),
         schoolName: await getSchoolName(),
         className: getClassName(selectedClass),
-        students: studentScores.keys.map((id) => {
-          'id': id,
-          'regno': 'N/A', // You'd need to fetch this from your students list
-          'scores': studentScores[id],
-        }).toList(),
+        students: studentsWithNames,
         subjects: subjects,
       );
 
