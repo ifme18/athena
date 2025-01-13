@@ -289,6 +289,8 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
       pinned: true,
       elevation: 0,
       flexibleSpace: FlexibleSpaceBar(
+        centerTitle: false,
+        titlePadding: EdgeInsets.only(left: 16, bottom: 8), // Reduced bottom padding
         background: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -298,36 +300,43 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             ),
           ),
         ),
-        title: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Welcome,',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white70,
+        title: Container( // Wrap in Container for better control
+          height: 50, // Fixed height
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Welcome,',
+                style: TextStyle(
+                  fontSize: 12, // Reduced font size
+                  color: Colors.white70,
+                ),
               ),
-            ),
-            Text(
-              user.name,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+              SizedBox(height: 2), // Reduced spacing
+              Text(
+                user.name,
+                style: TextStyle(
+                  fontSize: 18, // Reduced font size
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
         IconButton(
           icon: Container(
-            padding: EdgeInsets.all(8),
+            padding: EdgeInsets.all(6), // Reduced padding
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white.withOpacity(0.2),
             ),
-            child: Icon(Icons.notifications_none, color: Colors.white),
+            child: Icon(Icons.notifications_none, color: Colors.white, size: 20), // Reduced icon size
           ),
           onPressed: () {
             // Handle notifications
@@ -335,12 +344,12 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
         ),
         IconButton(
           icon: Container(
-            padding: EdgeInsets.all(8),
+            padding: EdgeInsets.all(6), // Reduced padding
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white.withOpacity(0.2),
             ),
-            child: Icon(Icons.settings_outlined, color: Colors.white),
+            child: Icon(Icons.settings_outlined, color: Colors.white, size: 20), // Reduced icon size
           ),
           onPressed: () {
             Navigator.push(
@@ -353,6 +362,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
       ],
     );
   }
+
 
   Widget _buildLoadingState() {
     return Scaffold(
